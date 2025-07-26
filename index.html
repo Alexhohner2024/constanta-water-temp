@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Температура воды - Констанца</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 350px;
+            background: #1e1e1e;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+
+        .location {
+            font-size: 12px;
+            color: #a0a0a0;
+            margin-bottom: 25px;
+        }
+
+        .temp-container {
+            background: #2d2d2d;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .temperature {
+            font-size: 32px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin: 0;
+        }
+
+        .temperature.error {
+            color: #FF9800;
+        }
+
+        .temperature.failed {
+            color: #FF5722;
+            font-size: 18px;
+        }
+
+        .status {
+            font-size: 11px;
+            margin: 8px 0 5px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .status.success {
+            color: #4CAF50;
+        }
+
+        .status.error {
+            color: #FF5722;
+        }
+
+        .status.warning {
+            color: #FF9800;
+        }
+
+        .update-time {
+            font-size: 10px;
+            color: #666666;
+            margin-bottom: 20px;
+        }
+
+        .refresh-btn {
+            background: #007ACC;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 35px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 auto;
+        }
+
+        .refresh-btn:hover {
+            background: #005A9E;
+            transform: translateY(-1px);
+        }
+
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+
+        .refresh-btn:disabled {
+            background: #444;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            color: #888888;
+        }
+
+        .wave-emoji {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+
+        .refresh-icon {
+            transition: transform 0.5s ease;
+        }
+
+        .refresh-btn:disabled .refresh-icon {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 400px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .temperature {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">
+            <span class="wave-emoji">🌊</span>Температура воды
+        </div>
+        <div class="location">Констанца, Черное море</div>
+        
+        <div class="temp-container">
+            <div id="temperature" class="temperature loading">Загрузка...</div>
+        </div>
+        
+        <div id="status" class="status loading">Получение данных...</div>
+        <div id="updateTime" class="update-time"></div>
+        
+        <button id="refreshBtn" class="refresh-btn" onclick="manualRefresh()">
+            <span class="refresh-icon">🔄</span>
+            Обновить
+        </button>
+    </div>
+
+    <script>
+        let lastTemp = null;
+        let lastUpdateTime = null;
+
+        // Настройки CORS прокси (пробуем другой)
+        const CORS_PROXY = 'https://corsproxy.io/?';
+        const TARGET_URL = 'https://ro.seatemperature.net/current/romania/constanta';
+
+        async function getWaterTemperature() {
+            try {
+                const response = await fetch(CORS_PROXY + encodeURIComponent(TARGET_URL), {
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const html = await response.text();
+
+                // Ищем температуру из блока с "date actualizate acum" (24.7°C)
+                const patterns = [
+                    /date actualizate acum[\s\S]*?(\d+\.?\d*)<span id='gradss'>°C<\/span>/i,
+                    /temp1[\s\S]*?(\d+\.?\d*)<span id='gradss'>°C<\/span>/i,
+                    /<h3>[\s\S]*?(\d+\.?\d*)<span id='gradss'>°C<\/span>/i
+                ];
+
+                console.log('Searching in HTML...'); // отладка
+
+                for (const pattern of patterns) {
+                    const match = html.match(pattern);
+                    if (match) {
+                        return parseFloat(match[1]);
+                    }
+                }
+
+                return null;
+
+            } catch (error) {
+                console.error('Ошибка получения температуры:', error);
+                return null;
+            }
+        }
+
+        function updateDisplay(temp, isError = false) {
+            const tempElement = document.getElementById('temperature');
+            const statusElement = document.getElementById('status');
+            const timeElement = document.getElementById('updateTime');
+            const currentTime = new Date().toLocaleTimeString('ru-RU');
+
+            if (temp !== null) {
+                lastTemp = temp;
+                lastUpdateTime = currentTime;
+                
+                tempElement.textContent = `${temp}°C`;
+                tempElement.className = 'temperature';
+                
+                statusElement.textContent = '✅ Данные получены';
+                statusElement.className = 'status success';
+                
+                timeElement.textContent = `Обновлено: ${currentTime}`;
+                
+            } else if (isError && lastTemp !== null) {
+                tempElement.textContent = `${lastTemp}°C`;
+                tempElement.className = 'temperature error';
+                
+                statusElement.textContent = '⚠️ Ошибка подключения';
+                statusElement.className = 'status warning';
+                
+                timeElement.textContent = `Последние данные: ${lastUpdateTime}`;
+                
+            } else {
+                tempElement.textContent = 'Нет данных';
+                tempElement.className = 'temperature failed';
+                
+                statusElement.textContent = '❌ Не удалось получить данные';
+                statusElement.className = 'status error';
+                
+                timeElement.textContent = '';
+            }
+        }
+
+        async function refreshTemperature(isManual = false) {
+            const refreshBtn = document.getElementById('refreshBtn');
+            const tempElement = document.getElementById('temperature');
+            const statusElement = document.getElementById('status');
+
+            if (isManual) {
+                refreshBtn.disabled = true;
+                tempElement.textContent = 'Загрузка...';
+                tempElement.className = 'temperature loading';
+                statusElement.textContent = 'Получение данных...';
+                statusElement.className = 'status loading';
+            }
+
+            try {
+                const temp = await getWaterTemperature();
+                updateDisplay(temp, temp === null);
+            } catch (error) {
+                console.error('Ошибка обновления:', error);
+                updateDisplay(null, true);
+            } finally {
+                if (isManual) {
+                    refreshBtn.disabled = false;
+                }
+            }
+        }
+
+        function manualRefresh() {
+            refreshTemperature(true);
+        }
+
+        function autoRefresh() {
+            refreshTemperature();
+            // Автообновление каждый час (3600000 мс)
+            setTimeout(autoRefresh, 3600000);
+        }
+
+        // Инициализация при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            autoRefresh();
+        });
+
+        // Telegram WebApp API (если доступно)
+        if (window.Telegram && window.Telegram.WebApp) {
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+            
+            // Применение темы Telegram
+            if (tg.colorScheme === 'dark') {
+                document.body.style.background = tg.themeParams.bg_color || '#1e1e1e';
+            }
+        }
+    </script>
+</body>
+</html>

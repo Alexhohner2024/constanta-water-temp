@@ -102,20 +102,33 @@ class WaterTempApp:
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
-            text = soup.get_text()
             
-            # Поиск температуры в тексте страницы
-            patterns = [
-                r'date actualizate acum \d+ de minute(\d+\.?\d*)°C',
-                r'(\d+\.?\d*)\s*°C.*?ieri:',
-                r'Astăzi temperatura apei în Constanța este (\d+\.?\d*)°C',
-                r'temperatura apei în Constanța chiar acum.*?(\d+\.?\d*)°C'
-            ]
+            # Ищем div с class="temp-value" рядом с div class="temp-label">Astăzi
+            temp_blocks = soup.find_all('div', class_='temp-block')
+            for block in temp_blocks:
+                temp_value = block.find('div', class_='temp-value')
+                temp_label = block.find('div', class_='temp-label')
+                if temp_value and temp_label and 'Astăzi' in temp_label.get_text():
+                    temp_text = temp_value.get_text()
+                    match = re.search(r'(\d+\.?\d*)', temp_text)
+                    if match:
+                        return float(match.group(1))
             
-            for pattern in patterns:
-                match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-                if match:
-                    return float(match.group(1))
+            # Fallback: ищем в JSON-LD данных
+            import json
+            scripts = soup.find_all('script', type='application/ld+json')
+            for script in scripts:
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, dict) and 'mainEntity' in data:
+                        for qa in data['mainEntity']:
+                            if 'temperatura apei' in qa.get('name', '').lower() and 'astăzi' in qa.get('name', '').lower():
+                                answer = qa.get('acceptedAnswer', {}).get('text', '')
+                                match = re.search(r'(\d+\.?\d*)°C', answer)
+                                if match:
+                                    return float(match.group(1))
+                except:
+                    continue
             
             return None
             

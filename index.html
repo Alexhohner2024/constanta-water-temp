@@ -184,8 +184,8 @@
         let lastTemp = null;
         let lastUpdateTime = null;
 
-        // Настройки CORS прокси (пробуем другой)
-        const CORS_PROXY = 'https://corsproxy.io/?';
+        // Настройки CORS прокси
+        const CORS_PROXY = 'https://api.codetabs.com/v1/proxy/?quest=';
         const TARGET_URL = 'https://ro.seatemperature.net/current/romania/constanta';
 
         async function getWaterTemperature() {
@@ -203,11 +203,12 @@
 
                 const html = await response.text();
 
-                // Ищем температуру из блока с "date actualizate acum" (24.7°C)
+                // Ищем температуру из новой структуры сайта
+                // <div class="temp-value">14.1<span>°C</span></div><div class="temp-label">Astăzi</div>
                 const patterns = [
-                    /date actualizate acum[\s\S]*?(\d+\.?\d*)<span id='gradss'>°C<\/span>/i,
-                    /temp1[\s\S]*?(\d+\.?\d*)<span id='gradss'>°C<\/span>/i,
-                    /<h3>[\s\S]*?(\d+\.?\d*)<span id='gradss'>°C<\/span>/i
+                    /<div class="temp-value">(\d+\.?\d*)<span>°C<\/span><\/div>\s*<div class="temp-label">Astăzi<\/div>/i,
+                    /<div class="temp-value">(\d+\.?\d*)<span>°C<\/span><\/div>\s*<div class="temp-label">Ieri<\/div>/i,
+                    /"text":"Temperatura apei pentru Constanța pe coasta Mării Negre este astăzi (\d+\.?\d*)°C"/i
                 ];
 
                 console.log('Searching in HTML...'); // отладка

@@ -1,0 +1,35 @@
+name: Build EXE
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'water_temp.py'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 pyinstaller
+
+      - name: Build EXE
+        run: pyinstaller --onefile --windowed --name water_temp water_temp.py
+
+      - name: Move EXE to root
+        run: mv dist/water_temp.exe water_temp.exe
+
+      - name: Commit updated EXE
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add water_temp.exe
+          git commit -m "chore: rebuild water_temp.exe [skip ci]"
+          git push

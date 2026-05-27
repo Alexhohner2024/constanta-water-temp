@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'water_temp.py'
+  workflow_dispatch:
 
 jobs:
   build:
